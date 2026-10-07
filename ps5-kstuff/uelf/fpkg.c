@@ -97,9 +97,9 @@ struct ppr_profile
  */
 static const struct ppr_profile* get_ppr_profile(void)
 {
-    /* Keep the newer profiles and offsets available for later work, but do
-     * not arm plaintext PPR interception above 11.60. */
-    if(FWVER > 0x1160)
+    /* Experimental: allow plaintext PPR through 13.60 for local/CI testing.
+     * Upstream previously capped this at 11.60 until runtime proof is solid. */
+    if(FWVER > 0x1360)
         return NULL;
 
     static const struct ppr_profile fw1_early = {
