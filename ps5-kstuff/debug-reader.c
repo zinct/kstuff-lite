@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 #include <sys/syscall.h>
 #include "../freebsd-headers/sys/ioccom.h"
 #include "uelf/shared_area.h"
@@ -105,14 +106,44 @@ static int snapshot_shared_area(struct kstuff_snapshot* snapshot)
 static void reopen_log_file(void)
 {
     if(g_log_file)
-    {
-        fclose(g_log_file);
-        g_log_file = NULL;
-    }
+        return;
 
-    g_log_file = fopen("/data/kstuff_debug.log", "w");
+    /* Append across freezes/reboots. The old "w" reopen every loop wiped the
+     * only evidence right before a hang. */
+    g_log_file = fopen("/data/kstuff_debug.log", "a");
     if(g_log_file)
-        setvbuf(g_log_file, g_log_file_buf, _IOFBF, sizeof(g_log_file_buf));
+        setvbuf(g_log_file, g_log_file_buf, _IONBF, sizeof(g_log_file_buf));
+}
+
+static void write_last_snapshot(const struct kstuff_snapshot* snapshot)
+{
+    FILE* last = fopen("/data/kstuff_debug_last.txt", "w");
+    if(!last)
+        return;
+
+    const struct kstuff_metrics* m = &snapshot->metrics;
+    fprintf(last,
+            "mailbox_fpkg=%" PRIu64 " fpkg_traps=%" PRIu64 "\n"
+            "fpkg_verify=%" PRIu64 " verify_emu=%" PRIu64 "\n"
+            "ppr_traps=%" PRIu64 " profile=%" PRIu64 " applied=%" PRIu64 "\n"
+            "ppr_hook_stage=%" PRIu64 " outstanding=%" PRIu64 "\n"
+            "last_lr=0x%016" PRIx64 " expected_lr=0x%016" PRIx64 "\n"
+            "malformed=0x%016" PRIx64 "\n",
+            (uint64_t)m->mailbox_fpkg,
+            (uint64_t)m->fpkg_traps,
+            (uint64_t)m->verify_superblock_mailbox,
+            (uint64_t)m->verify_superblock_emulated,
+            (uint64_t)m->ppr_plaintext_g6_traps,
+            (uint64_t)m->ppr_plaintext_profile_matches,
+            (uint64_t)m->ppr_plaintext_g6_applied,
+            (uint64_t)m->ppr_plaintext_hook_stage,
+            (uint64_t)snapshot->ppr_plaintext_key_pairs_outstanding,
+            (uint64_t)m->ppr_verify_last_lr,
+            (uint64_t)m->ppr_verify_expected_lr,
+            (uint64_t)m->ppr_verify_last_malformed);
+    fflush(last);
+    fsync(fileno(last));
+    fclose(last);
 }
 
 static void print_metrics(const struct kstuff_metrics* metrics)
@@ -615,7 +646,10 @@ int main(void)
     struct kstuff_snapshot snapshot;
     /* Keep the host-side trace close enough to retain the last PPR event when
      * an early-firmware kernel panics immediately after verifyImage. */
-    const struct timespec delay = {1, 0};
+    const struct timespec delay = {0, 500000000}; /* 0.5s */
+    uint64_t word_seq = 0;
+    uint64_t msg_seq = 0;
+    uint64_t round = 0;
 
     setvbuf(stdout, g_stdout_buf, _IOLBF, sizeof(g_stdout_buf));
     setvbuf(stderr, NULL, _IONBF, 0);
@@ -641,8 +675,6 @@ int main(void)
 
     for(;;)
     {
-        uint64_t word_seq = 0;
-        uint64_t msg_seq = 0;
         int err = snapshot_shared_area(&snapshot);
         if(err)
         {
@@ -651,10 +683,10 @@ int main(void)
             return 1;
         }
 
-        reopen_log_file();
         if(!g_log_file)
-            tee_errprintf("debug-reader: failed to open /data/kstuff_debug.log\n");
+            reopen_log_file();
 
+        tee_printf("----- snapshot %" PRIu64 " -----\n", ++round);
         print_new_msg_log(&snapshot, &msg_seq);
         print_new_word_log(&snapshot, &word_seq);
         print_metrics(&snapshot.metrics);
@@ -664,6 +696,9 @@ int main(void)
         print_ioctl_com_table(&snapshot.ioctl_com_table, snapshot.metrics.syscall_ioctl_dispatches);
 
         tee_flush();
+        if(g_log_file)
+            fsync(fileno(g_log_file));
+        write_last_snapshot(&snapshot);
 
         nanosleep(&delay, NULL);
     }

@@ -1284,6 +1284,8 @@ static int patch_shellcore(const struct shellcore_patch* patches, size_t n_patch
     && install_shellcore_ppr_hook(pid, shellcore_base, text_end,
                                   dmap, cr3, &locked))
         return -1;
+    if(install_fpkg_hook)
+        notify("fpkg scope: ShellCore hook installed");
     return 0;
 }
 
