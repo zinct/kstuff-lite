@@ -1,17 +1,36 @@
-# fPKG/PPR validation for firmware 13.60
+# fPKG/PPR status for firmware 13.60
 
-Firmware 13.60 is wired into the loader, prosper0gdb, ShellCore patch tables,
-and the UELF fPKG/PPR profile.  Plaintext PPR interception remains
-**experimental** until both the exact retail images and a retail console pass
-the checks below.  A successful build alone is not proof of runtime support.
+Firmware 13.60 is wired into the loader, prosper0gdb, and ShellCore patch
+tables, but installed native PS5 fPKG is **not supported**. The public
+kernel-side offsets are candidates, and the required external A53 selector in
+[`drakmor/ppr-patch`](https://github.com/drakmor/ppr-patch) has exact profiles
+only through firmware 11.40. Its documentation explicitly states that adding
+an A53 profile alone does not add the matching kernel-side marker.
+
+For that reason kstuff keeps installed native PS5 fPKG/PPR limited to 11.60
+and earlier. On newer firmware the package GOT wrappers are not installed and
+the UELF does not arm candidate PPR traps. This converts an unsupported launch
+from a ShellCore/kernel freeze into a normal failure. Firmware 13.60 users
+must use the dump/`.ffpkg` workflow until both sides below are ported.
 
 ## Baseline and provenance
 
-The 13.60 kernel table was introduced by commit `fb70287`.  The eight PPR
+The 13.60 kernel table was introduced by commit `fb70287`. The eight PPR
 offsets and the generation-13 ABI profile were added by `a7ca1c3`.  Upstream
 then capped plaintext interception at 11.60 in `bd8928c`, while retaining the
-newer offsets for later validation.  This branch raises the experimental gate
-to 13.60 and adds persistent observability.
+newer offsets for later validation. Enabling those candidates without the
+matching A53 13.60 profile caused installed PS5 games to hang during launch,
+so this branch preserves the upstream safety limit.
+
+Full 13.60 support requires work in two repositories:
+
+1. `kstuff-lite`: validate the kernel and ShellCore offsets described below;
+2. `drakmor/ppr-patch`: obtain the exact retail 13.60 A53 image, extend its
+   generator inventory, generate a 13.60 target profile, and pass that
+   repository's `make verify` and `make host-test`.
+
+Do not copy an 11.x A53 profile. The external patcher validates complete
+instruction layouts and intentionally fails closed on unknown firmware.
 
 Compared with 13.40/13.42, 13.60 has a different kernel layout.  Many text and
 data-relative addresses move, so the 13.40/13.42 table must not be reused.
@@ -90,15 +109,15 @@ the installer branches, the three `ps4_nongame_mini` category checks, the RIF
 callback, and the final PKG-installer return.  The image audit proves target
 ranges and records bytes; it does not replace control-flow review.
 
-At runtime, every patch is now checked against the ShellCore text range and
-read back after writing.  The fPKG wrapper additionally verifies its mapped
-blob and GOT installation.  Success emits:
+At runtime, every patch is checked against the ShellCore text range and read
+back after writing. On firmware 11.60 and earlier, the fPKG wrapper additionally
+verifies its mapped blob and GOT installation. Success emits:
 
 ```text
 fpkg scope: ShellCore hook installed
 ```
 
-## Observable console test
+## Observable console test after both ports exist
 
 Build:
 
@@ -112,7 +131,9 @@ Deploy `ps5-kstuff-ldr/kstuff.elf`, then run
 `/data/kstuff_debug.log`, fsyncs every snapshot, and keeps a compact
 `/data/kstuff_debug_last.txt` for post-reboot diagnosis.
 
-Run these tests on a retail 13.60 console:
+Only after `kstuff-lite` validation and a generated external A53 13.60 profile
+both pass, enable the shared firmware limit and run these tests on a retail
+13.60 console:
 
 1. Mount and launch a game fPKG.  `syscall_fpkg_dispatches`,
    `mailbox_fpkg`, and the relevant crypto counters must advance without a
@@ -125,6 +146,6 @@ Run these tests on a retail 13.60 console:
 4. Repeat mount/read/unmount.  ShellCore must remain responsive and no stale
    key pair may accumulate.
 
-Do not remove the experimental label or claim full 13.60 support until the
-retail kernel validator, ShellCore image review, and all four console checks
-have recorded passing evidence.
+Do not raise `KSTUFF_FPKG_MAX_FW` or claim full 13.60 support until the retail
+kernel validator, ShellCore image review, external A53 profile verification,
+and all four console checks have recorded passing evidence.

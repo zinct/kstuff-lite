@@ -2,6 +2,8 @@
 #include <sys/types.h>
 #include <sys/syscall.h>
 
+#define KSTUFF_FPKG_MAX_FW 0x1160
+
 enum kstuff_fpkg_scope_kind
 {
     KSTUFF_FPKG_SCOPE_GAME_MOUNT = 1,

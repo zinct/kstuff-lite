@@ -13,6 +13,7 @@
 #include "../prosper0gdb/r0gdb.h"
 #include "../prosper0gdb/offsets.h"
 #include "../gdb_stub/dbg.h"
+#include "uelf/fpkg.h"
 #include "uelf/structs.h"
 #include "uelf/shared_area.h"
 #include "../lib/shellcore-imports.h"
@@ -1240,10 +1241,12 @@ enum kit_type kit = get_kit_type();
     return patches;
 }
 
-static int patch_shellcore(const struct shellcore_patch* patches, size_t n_patches, uint64_t eh_frame_offset)
+static int patch_shellcore(const struct shellcore_patch* patches,
+                           size_t n_patches, uint64_t eh_frame_offset,
+                           uint64_t fwver)
 {
     shellcore_patch_failure = 0;
-    int install_fpkg_hook = patches != 0;
+    int install_fpkg_hook = patches != 0 && fwver <= KSTUFF_FPKG_MAX_FW;
     if(install_fpkg_hook && (!kstuff_dynlib_handle || !kstuff_dynlib_resolve
                          || !kstuff_shellcore_imports))
         return shellcore_ppr_fail("fpkg scope: SDK resolver unavailable");
@@ -1703,7 +1706,8 @@ int main(void* ds, int a, int b, uintptr_t c, uintptr_t d)
     {
         if (patch_shellcore(shellcore_patches,
                             n_shellcore_patches,
-                            shellcore_eh_frame_offset))
+                            shellcore_eh_frame_offset,
+                            fwver))
         {
             notify(shellcore_patch_failure ? shellcore_patch_failure
                                            : "failed to patch shellcore");

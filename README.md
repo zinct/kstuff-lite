@@ -168,9 +168,10 @@ The added metrics cover:
 area. Metrics are intended for comparison runs; they add measurement overhead
 and should not be used as release-performance numbers.
 
-## Experimental fPKG/PPR on firmware 13.60
+## Firmware 13.60 fPKG limitation
 
-Firmware 13.60 is wired for observable fPKG and plaintext PPR testing, but is
-not considered fully validated by a successful build alone. See
-[`docs/fpkg-13.60.md`](docs/fpkg-13.60.md) for the required retail-kernel
-validation, ShellCore byte audit, console test matrix, and pass criteria.
+Firmware 13.60 supports the general kstuff/loader paths, but installed native
+PS5 fPKG/PPR remains limited to firmware 11.60 and earlier. The unsafe package
+mount hook is disabled on newer firmware so an unsupported launch fails
+instead of blocking ShellCore. Use the dump/`.ffpkg` workflow documented in
+[`docs/fpkg-13.60.md`](docs/fpkg-13.60.md) on 13.60.

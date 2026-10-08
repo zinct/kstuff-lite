@@ -116,9 +116,10 @@ static int ppr_offsets_available(void)
  */
 static const struct ppr_profile* get_ppr_profile(void)
 {
-    /* Experimental: allow plaintext PPR through 13.60 for local/CI testing.
-     * Upstream previously capped this at 11.60 until runtime proof is solid. */
-    if(FWVER > 0x1360 || !ppr_offsets_available())
+    /* Installed native PS5 fPKG/PPR is not validated above 11.60.  Do not
+     * arm candidate offsets on newer kernels: a bad #DB continuation can
+     * leave the game launch and ShellCore permanently blocked. */
+    if(FWVER > KSTUFF_FPKG_MAX_FW || !ppr_offsets_available())
         return NULL;
 
     static const struct ppr_profile fw1_early = {
