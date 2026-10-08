@@ -9,6 +9,9 @@ the PPR trap ABI safe: both get-index calls and return addresses, cleanup call
 sites, the clear-key miss instruction, the verifyImage mailbox return address,
 and the success continuation.  This is a static audit; console testing is still
 needed before calling a firmware fully supported.
+
+Use ``--firmware 13.60`` to validate only that version and fail explicitly
+when the matching retail image is absent from the corpus.
 """
 
 from __future__ import annotations
@@ -345,16 +348,31 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("kernels", type=Path,
                         help="kernel corpus root containing retail/")
+    parser.add_argument(
+        "--firmware", action="append", default=[], metavar="MAJOR.MINOR",
+        help="validate only this firmware and fail if its retail image is "
+             "missing; may be repeated",
+    )
     parser.add_argument("--headers", type=Path,
                         default=Path(__file__).resolve().parents[1]
                                 / "prosper0gdb" / "offsets")
     args = parser.parse_args()
+    required = set()
+    for firmware in args.firmware:
+        match = re.fullmatch(r"(\d+)\.(\d+)", firmware)
+        if not match:
+            parser.error(f"invalid firmware version: {firmware}")
+        major, minor = map(int, match.groups())
+        required.add(f"{major}_{minor:02d}")
+
     retail = args.kernels / "retail"
     if not retail.is_dir():
         parser.error(f"retail directory not found: {retail}")
 
     failures = 0
     checked = 0
+    passed = 0
+    seen = set()
     for path in sorted(retail.iterdir()):
         if path.suffix.lower() not in (".elf", ".bin"):
             continue
@@ -362,13 +380,22 @@ def main() -> int:
             key, _major, _minor = version_key(path)
         except ValueError:
             continue
+        if required and key not in required:
+            continue
         if not (args.headers / f"{key}.h").is_file():
             continue
+        seen.add(key)
         try:
             errors = validate(path, args.headers)
         except (OSError, ValueError, struct.error) as exc:
             errors = [str(exc)]
         if errors == ["PPR is not enabled in the matching table"]:
+            if key in required:
+                checked += 1
+                failures += 1
+                print(f"FAIL {path.name}")
+                print(f"  {errors[0]}")
+                continue
             print(f"SKIP {path.name}: {errors[0]}")
             continue
         checked += 1
@@ -378,10 +405,15 @@ def main() -> int:
             for error in errors:
                 print(f"  {error}")
         else:
+            passed += 1
             print(f"PASS {path.name}")
 
+    for key in sorted(required - seen):
+        failures += 1
+        print(f"FAIL {key.replace('_', '.')}: retail image not found")
+
     print(f"Checked {checked} retail image(s): "
-          f"{checked - failures} passed, {failures} failed.")
+          f"{passed} passed, {failures} failed.")
     return 1 if failures else 0
 
 

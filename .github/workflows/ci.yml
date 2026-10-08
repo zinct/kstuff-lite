@@ -33,6 +33,14 @@ jobs:
         wget https://github.com/ps5-payload-dev/pacbrew-repo/releases/latest/download/ps5-payload-dev.tar.gz
         sudo tar xf ps5-payload-dev.tar.gz -C /
 
+    - name: Validate fPKG tooling and patch tables
+      run: |
+        python3 -m py_compile \
+          tools/validate_ppr_offsets.py \
+          tools/find_ppr_offsets.py \
+          tools/audit_shellcore_patches.py
+        python3 tools/audit_shellcore_patches.py
+
     - name: Build Payload
       run: |
         export PS5_PAYLOAD_SDK=/opt/ps5-payload-sdk

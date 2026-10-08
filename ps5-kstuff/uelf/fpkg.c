@@ -81,6 +81,25 @@ struct ppr_profile
     uint8_t verify_success_abi;
 };
 
+static int ppr_offset_available(const char* symbol)
+{
+    uint64_t address = (uint64_t)symbol;
+    asm volatile("" : "+r"(address));
+    return address != 0;
+}
+
+static int ppr_offsets_available(void)
+{
+    return ppr_offset_available(ppr_pfs_get_xts_index)
+        && ppr_offset_available(ppr_pfs_get_cmac_index)
+        && ppr_offset_available(ppr_pfs_get_xts_return)
+        && ppr_offset_available(ppr_pfs_get_cmac_return)
+        && ppr_offset_available(ppr_pfs_cleanup_keys)
+        && ppr_offset_available(ppr_pfs_clear_key_missing)
+        && ppr_offset_available(sceSblServiceMailbox_lr_verifyImage)
+        && ppr_offset_available(ppr_pfs_verify_image_no_key_success);
+}
+
 /*
  * verifyImage's mailbox request is stable across the supported retail
  * kernels, including its physical output destinations.  The wrapper keeps
@@ -99,7 +118,7 @@ static const struct ppr_profile* get_ppr_profile(void)
 {
     /* Experimental: allow plaintext PPR through 13.60 for local/CI testing.
      * Upstream previously capped this at 11.60 until runtime proof is solid. */
-    if(FWVER > 0x1360)
+    if(FWVER > 0x1360 || !ppr_offsets_available())
         return NULL;
 
     static const struct ppr_profile fw1_early = {

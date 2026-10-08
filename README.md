@@ -167,3 +167,10 @@ The added metrics cover:
 `ps5-kstuff/debug-reader.c` prints these counters from the shared observation
 area. Metrics are intended for comparison runs; they add measurement overhead
 and should not be used as release-performance numbers.
+
+## Experimental fPKG/PPR on firmware 13.60
+
+Firmware 13.60 is wired for observable fPKG and plaintext PPR testing, but is
+not considered fully validated by a successful build alone. See
+[`docs/fpkg-13.60.md`](docs/fpkg-13.60.md) for the required retail-kernel
+validation, ShellCore byte audit, console test matrix, and pass criteria.

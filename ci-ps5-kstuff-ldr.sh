@@ -64,6 +64,13 @@ case "$kstuff_obs" in
         ;;
 esac
 
+if [ -n "${KSTUFF_KERNEL_CORPUS:-}" ]; then
+    printf 'Validating retail 13.60 PPR offsets from %s.\n' \
+        "$KSTUFF_KERNEL_CORPUS" >&2
+    python3 tools/validate_ppr_offsets.py "$KSTUFF_KERNEL_CORPUS" \
+        --firmware 13.60
+fi
+
 if [ "$kstuff_obs" = 1 ]; then
     printf 'Building ps5-kstuff with observability enabled.\n' >&2
     kstuff_make_args=(KSTUFF_OBS=1 payload.bin debug-reader.elf debug-reader.bin)

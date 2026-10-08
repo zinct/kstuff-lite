@@ -1271,14 +1271,25 @@ static int patch_shellcore(const struct shellcore_patch* patches, size_t n_patch
         return -1;
 
     struct shellcore_locked_pages locked = {0};
+    uint64_t text_size = text_end - shellcore_base;
 
     for(size_t i = 0; i < n_patches; i++)
     {
-        if(lock_shellcore_range(pid, shellcore_base + patches[i].offset,
+        if(!patches[i].sz || patches[i].offset >= text_size
+        || patches[i].sz > text_size - patches[i].offset)
+            return shellcore_ppr_fail(
+                "fpkg scope: ShellCore patch outside text segment");
+        uint64_t address = shellcore_base + patches[i].offset;
+        if(lock_shellcore_range(pid, address,
                                 patches[i].sz, &locked))
             return -1;
-        if(phys_copyin(shellcore_base + patches[i].offset, patches[i].data, patches[i].sz, dmap, cr3))
-            return -1;
+        if(phys_copyin(address, patches[i].data, patches[i].sz, dmap, cr3)
+        || verify_shellcore_blob(address,
+                                 (const unsigned char*)patches[i].data,
+                                 patches[i].sz,
+                                 dmap, cr3))
+            return shellcore_ppr_fail(
+                "fpkg scope: ShellCore patch readback failed");
     }
     if(install_fpkg_hook
     && install_shellcore_ppr_hook(pid, shellcore_base, text_end,

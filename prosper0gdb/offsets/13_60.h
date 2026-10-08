@@ -75,7 +75,8 @@ DEF(cr0_clear_store, -0x5C7ED3)
 DEF(cr0_write_ret, -0x58E983)
 DEF(store_rax_rdi, -0x1F44A2)
 
-// PPR/fPKG offsets
+// PPR/fPKG offsets are candidates until validate_ppr_offsets.py passes
+// against the exact retail 13.60 image.
 DEF(ppr_pfs_get_xts_index, -0x12c6e0)
 DEF(ppr_pfs_get_cmac_index, -0x12c580)
 DEF(ppr_pfs_get_xts_return, -0x949bf7)
